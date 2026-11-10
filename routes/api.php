@@ -19,3 +19,21 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/profile', [AuthController::class, 'profile']);
     Route::post('/logout', [AuthController::class, 'logout']);
 });
+
+Route::middleware(['auth:sanctum', 'role:admin,student'])
+    ->get('/students', function () {
+        return response()->json([
+            ['id' => 1, 'name' => 'Ana Reyes', 'course' => 'BSIT'],
+            ['id' => 2, 'name' => 'Ben Cruz', 'course' => 'BSCS'],
+        ]);
+    });
+
+Route::middleware(['auth:sanctum', 'admin'])
+    ->get('/admin/dashboard', function () {
+        return response()->json(['message' => 'Welcome Admin!']);
+    });
+
+Route::middleware(['auth:sanctum', 'role:student'])
+    ->get('/student/dashboard', function () {
+        return response()->json(['message' => 'Welcome Student!']);
+    });

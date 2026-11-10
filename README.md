@@ -1,58 +1,51 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Laravel 13 Secure API: Token Authentication and RBAC
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Integrative Programming & Technologies II, Module 5.
 
-## About Laravel
+- **Lesson 1:** Sanctum token authentication. Evidence is in `evidence/`.
+- **Lesson 2:** Role-based access control with two custom middleware. Evidence is in `screenshots/`.
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## RBAC routes
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+| Endpoint | Method | Middleware | Admin | Student | No token |
+|---|---|---|---|---|---|
+| `/api/profile` | GET | `auth:sanctum` | 200 | 200 | 401 |
+| `/api/students` | GET | `auth:sanctum`, `role:admin,student` | 200 | 200 | 401 |
+| `/api/admin/dashboard` | GET | `auth:sanctum`, `admin` | 200 | 403 | 401 |
+| `/api/student/dashboard` | GET | `auth:sanctum`, `role:student` | 403 | 200 | 401 |
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## How it works
 
-## Learning Laravel
+- The `users` table has a `role` column that defaults to `student`.
+- Public registration never accepts a `role`. The admin role is assigned only through trusted server-side code (tinker).
+- `CheckRole` accepts one or more roles. It returns 401 if there is no user and 403 if the role is not allowed.
+- `AdminMiddleware` allows only `role === 'admin'`, with the same 401 and 403 behavior.
+- The `role` and `admin` aliases are registered in `bootstrap/app.php`.
+- `auth:sanctum` runs first, so the token is checked before the role.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+## Local testing steps
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+1. Start MySQL in XAMPP and create the database `demo_app_integ2`.
+2. Run `composer install`, copy `.env.example` to `.env`, set the `DB_*` values, and run `php artisan key:generate`.
+3. Run `php artisan migrate`.
+4. Create one admin and one student in `php artisan tinker`. Set `role` directly, and choose your own passwords:
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
-
-```bash
-composer require laravel/boost --dev
-
-php artisan boost:install
+```php
+$u = User::firstOrNew(['email' => 'admin@example.com']);
+$u->name = 'Admin User'; $u->password = Hash::make('CHOOSE_A_PASSWORD'); $u->role = 'admin'; $u->save();
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+5. Run `php artisan serve`.
+6. In Postman, send `Accept: application/json`, log in with `POST /api/login`, then use the returned token as a Bearer token.
 
-## Contributing
+## Screenshots
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+`screenshots/` holds the eight Postman tests: admin login, admin allowed, admin denied, student login, student allowed, student denied, shared route, and no token. Tokens are hidden.
 
-## Code of Conduct
+## Reflection
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+**What is the difference between authentication and authorization?**
+Authentication checks who you are. In this project Sanctum does it by validating the Bearer token. Authorization checks what you are allowed to do. In this project the role middleware does it by comparing the user's role with the roles the route allows.
 
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+**Why does a student get 403 on the admin dashboard, but a request without a token gets 401?**
+With no token, Sanctum cannot identify the user, so the request is stopped with 401. A student's token is valid, so the user is identified, but `AdminMiddleware` sees the role is not `admin` and refuses with 403. A 401 means I don't know who you are. A 403 means I know who you are, but you are not allowed here.
